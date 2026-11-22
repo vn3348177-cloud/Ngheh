@@ -1,0 +1,344 @@
+```html
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nghe &amp; Nhớ Bài Cũ – Đọc Văn Bản &amp; File Thành Giọng Nói</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <style>
+    :root {
+      --bg-page: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-soft: #f1f5f9;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --border-col: #e2e8f0;
+      --highlight-bg: #dbeafe;
+      --highlight-ring: #3b82f6;
+      --highlight-text: #1e3a8a;
+    }
+    .dark {
+      --bg-page: #0f172a;
+      --bg-card: #1e293b;
+      --bg-soft: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #cbd5e1;
+      --border-col: #334155;
+      --highlight-bg: #1e3a8a;
+      --highlight-ring: #60a5fa;
+      --highlight-text: #eff6ff;
+    }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      transition: background-color 0.2s, color 0.2s;
+    }
+    .card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-col);
+    }
+    .soft-box {
+      background-color: var(--bg-soft);
+    }
+    .sentence-item {
+      transition: background-color 0.2s, transform 0.15s, filter 0.2s;
+      cursor: pointer;
+    }
+    .sentence-item:hover {
+      background-color: var(--bg-soft);
+    }
+    .sentence-active {
+      background-color: var(--highlight-bg) !important;
+      color: var(--highlight-text) !important;
+      box-shadow: inset 3px 0 0 var(--highlight-ring);
+      font-weight: 500;
+    }
+    .sentence-blurred:not(.sentence-active) {
+      filter: blur(4px);
+      user-select: none;
+    }
+    .sentence-blurred:hover {
+      filter: blur(0px);
+    }
+    .toast-enter {
+      animation: slideUp 0.25s ease-out;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-32">
+  <!-- Top Header -->
+  <header class="sticky top-0 z-30 card border-x-0 border-t-0 shadow-sm">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+          <i data-lucide="headphones" class="w-5 h-5"></i>
+        </div>
+        <div class="min-w-0">
+          <h1 class="text-base sm:text-lg font-bold leading-tight truncate">Nghe &amp; Nhớ Bài Cũ</h1>
+          <p class="text-xs truncate" style="color: var(--text-muted);">Đọc văn bản, PDF, Word, TXT thành giọng nói</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <button id="btnLoadSample" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/40 dark:text-blue-200 transition flex items-center gap-1.5" title="Nạp lại bài ôn tập Bài 6 &amp; 7">
+          <i data-lucide="book-open" class="w-3.5 h-3.5"></i>
+          <span class="hidden sm:inline">Bài 6 &amp; 7</span>
+        </button>
+        <button id="btnTheme" type="button" class="p-2 rounded-lg soft-box hover:opacity-80 transition" aria-label="Đổi giao diện sáng tối" title="Chế độ ban đêm">
+          <i id="iconTheme" data-lucide="moon" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 py-4 space-y-4">
+    <!-- Mode Tabs & Upload -->
+    <section class="card rounded-2xl p-3 sm:p-4 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div class="inline-flex rounded-xl p-1 soft-box">
+          <button id="tabRead" type="button" class="px-3.5 py-1.5 rounded-lg text-sm font-semibold bg-blue-600 text-white shadow-sm transition flex items-center gap-1.5">
+            <i data-lucide="volume-2" class="w-4 h-4"></i>
+            Chế độ Đọc &amp; Nghe
+          </button>
+          <button id="tabEdit" type="button" class="px-3.5 py-1.5 rounded-lg text-sm font-semibold transition flex items-center gap-1.5" style="color: var(--text-muted);">
+            <i data-lucide="file-edit" class="w-4 h-4"></i>
+            Nhập / Sửa văn bản
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <label for="fileInput" class="cursor-pointer px-3 py-1.5 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition flex items-center gap-1.5 shadow-sm">
+            <i data-lucide="upload" class="w-4 h-4"></i>
+            Tải file (.pdf, .docx, .txt)
+          </label>
+          <input id="fileInput" type="file" accept=".txt,.md,.pdf,.docx" class="hidden">
+        </div>
+      </div>
+
+      <!-- Study Controls Row -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-3 border-t" style="border-color: var(--border-col);">
+        <!-- Voice -->
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <label for="voiceSelect" class="text-xs font-semibold flex items-center gap-1" style="color: var(--text-muted);">
+              <i data-lucide="mic" class="w-3.5 h-3.5"></i> Giọng hệ thống
+            </label>
+            <button id="btnPreviewVoice" type="button" class="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5" title="Nghe thử giọng hiện tại">
+              <i data-lucide="volume-1" class="w-3 h-3"></i> Thử giọng
+            </button>
+          </div>
+          <select id="voiceSelect" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium soft-box border-0 outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">Đang tải giọng đọc...</option>
+          </select>
+        </div>
+
+        <!-- Speed -->
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center justify-between text-xs font-semibold" style="color: var(--text-muted);">
+            <span class="flex items-center gap-1"><i data-lucide="gauge" class="w-3.5 h-3.5"></i> Tốc độ</span>
+            <span id="speedLabel" class="text-blue-600 dark:text-blue-400 font-bold">1.0x</span>
+          </div>
+          <input id="speedRange" type="range" min="0.6" max="1.8" step="0.1" value="1.0" class="w-full accent-blue-600 cursor-pointer">
+        </div>
+
+        <!-- Repeat per sentence -->
+        <div class="flex flex-col gap-1">
+          <label for="repeatSelect" class="text-xs font-semibold flex items-center gap-1" style="color: var(--text-muted);">
+            <i data-lucide="repeat-1" class="w-3.5 h-3.5"></i> Lặp mỗi câu (học thuộc)
+          </label>
+          <select id="repeatSelect" class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium soft-box border-0 outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="1">Đọc 1 lần / câu</option>
+            <option value="2">Lặp 2 lần / câu</option>
+            <option value="3">Lặp 3 lần / câu</option>
+          </select>
+        </div>
+
+        <!-- Pause & Sleep Timer -->
+        <div class="flex flex-col gap-1">
+          <label for="pauseSelect" class="text-xs font-semibold flex items-center gap-1" style="color: var(--text-muted);">
+            <i data-lucide="clock" class="w-3.5 h-3.5"></i> Nghỉ giữa câu / Hẹn tắt
+          </label>
+          <div class="flex gap-1.5">
+            <select id="pauseSelect" class="w-1/2 px-2 py-1.5 rounded-lg text-xs font-medium soft-box border-0 outline-none focus:ring-2 focus:ring-blue-500" title="Khoảng nghỉ sau mỗi câu để tự nhẩm">
+              <option value="0">Nghỉ 0s</option>
+              <option value="1000" selected>Nghỉ 1s</option>
+              <option value="2000">Nghỉ 2s</option>
+              <option value="3000">Nghỉ 3s</option>
+            </select>
+            <select id="timerSelect" class="w-1/2 px-2 py-1.5 rounded-lg text-xs font-medium soft-box border-0 outline-none focus:ring-2 focus:ring-blue-500" title="Hẹn giờ tự động dừng đọc">
+              <option value="0">Không hẹn</option>
+              <option value="5">Tắt sau 5p</option>
+              <option value="10">Tắt sau 10p</option>
+              <option value="15">Tắt sau 15p</option>
+              <option value="30">Tắt sau 30p</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rich Voice Style Presets & Pitch/Volume -->
+      <div class="mt-3 pt-2.5 border-t space-y-2.5" style="border-color: var(--border-col);">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="text-xs font-semibold flex items-center gap-1.5" style="color: var(--text-muted);">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-500"></i>
+            Phong cách giọng đọc:
+          </span>
+          <div class="flex items-center gap-3 text-xs">
+            <label class="flex items-center gap-1.5 font-medium" style="color: var(--text-muted);">
+              <span>Cao độ</span>
+              <input id="pitchRange" type="range" min="0.6" max="1.5" step="0.05" value="1.0" class="w-16 sm:w-20 accent-blue-600 cursor-pointer">
+              <span id="pitchLabel" class="font-bold text-blue-600 dark:text-blue-400 tabular-nums w-7">1.0</span>
+            </label>
+            <label class="flex items-center gap-1.5 font-medium" style="color: var(--text-muted);">
+              <span>Âm lượng</span>
+              <input id="volumeRange" type="range" min="0.2" max="1.0" step="0.1" value="1.0" class="w-14 sm:w-16 accent-blue-600 cursor-pointer">
+            </label>
+          </div>
+        </div>
+        <div id="voicePresetBar" class="flex flex-wrap gap-1.5">
+          <button type="button" data-preset="natural" class="preset-btn px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-600 text-white transition">Tự nhiên</button>
+          <button type="button" data-preset="female_soft" class="preset-btn px-2.5 py-1 rounded-full text-xs font-semibold soft-box hover:opacity-80 transition">Nữ dịu nhẹ</button>
+          <button type="button" data-preset="male_deep" class="preset-btn px-2.5 py-1 rounded-full text-xs font-semibold soft-box hover:opacity-80 transition">Nam trầm ấm</button>
+          <button type="button" data-preset="teacher" class="preset-btn px-2.5 py-1 rounded-full text-xs font-semibold soft-box hover:opacity-80 transition">Cô giáo giảng bài</button>
+          <button type="button" data-preset="news_fast" class="preset-btn px-2.5 py-1 rounded-full text-xs font-semibold soft-box hover:opacity-80 transition">Ôn gấp (Nhanh rõ)</button>
+          <button type="button" data-preset="night_calm" class="preset-btn px-2.5 py-1 rounded-full text-xs font-semibold soft-box hover:opacity-80 transition">Ru ngủ ban đêm</button>
+          <button type="button" data-preset="energetic" class="preset-btn px-2.5 py-1 rounded-full text-xs font-semibold soft-box hover:opacity-80 transition">Sôi nổi (Tỉnh táo)</button>
+        </div>
+      </div>
+
+      <!-- Quick Toggles -->
+      <div class="flex flex-wrap items-center justify-between gap-2 mt-3 pt-2.5 border-t text-xs" style="border-color: var(--border-col);">
+        <div class="flex flex-wrap items-center gap-3">
+          <label class="inline-flex items-center gap-1.5 cursor-pointer select-none font-medium">
+            <input id="chkLoopAll" type="checkbox" class="rounded accent-blue-600 w-4 h-4">
+            <span>Lặp lại cả bài</span>
+          </label>
+          <label class="inline-flex items-center gap-1.5 cursor-pointer select-none font-medium">
+            <input id="chkBlurMode" type="checkbox" class="rounded accent-blue-600 w-4 h-4">
+            <span>Làm mờ câu chưa đọc (tự nhẩm)</span>
+          </label>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="timerBadge" class="hidden px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-semibold"></span>
+          <span id="fileBadge" class="px-2 py-0.5 rounded-full soft-box font-medium truncate max-w-[200px]" style="color: var(--text-muted);">Bài 6 &amp; Bài 7 (Có sẵn)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- View 1: Reader / Highlighter View -->
+    <section id="viewRead" class="card rounded-2xl p-4 sm:p-6 shadow-sm">
+      <div class="flex items-center justify-between gap-2 mb-3 pb-2 border-b" style="border-color: var(--border-col);">
+        <p class="text-xs font-medium flex items-center gap-1.5" style="color: var(--text-muted);">
+          <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5 text-blue-600"></i>
+          Chạm vào bất kỳ câu nào bên dưới để nghe từ câu đó
+        </p>
+        <span id="sentenceStats" class="text-xs font-semibold text-blue-600 dark:text-blue-400">0 câu</span>
+      </div>
+      <div id="sentenceContainer" class="space-y-1.5 text-base leading-relaxed">
+        <!-- Populated dynamically -->
+      </div>
+    </section>
+
+    <!-- View 2: Editor View -->
+    <section id="viewEdit" class="hidden card rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <label for="textInput" class="text-sm font-bold">Nội dung văn bản cần đọc</label>
+        <div class="flex items-center gap-2">
+          <button id="btnClearText" type="button" class="px-2.5 py-1 rounded-lg text-xs font-semibold soft-box hover:opacity-80 transition">Xóa trắng</button>
+          <button id="btnApplyText" type="button" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition flex items-center gap-1">
+            <i data-lucide="check" class="w-3.5 h-3.5"></i> Lưu &amp; Chuyển sang Đọc
+          </button>
+        </div>
+      </div>
+      <textarea id="textInput" rows="14" class="w-full p-3.5 rounded-xl soft-box border text-sm leading-relaxed outline-none focus:ring-2 focus:ring-blue-500" style="border-color: var(--border-col);" placeholder="Dán bài học của bạn vào đây hoặc bấm nút Tải file (.pdf, .docx, .txt) ở phía trên..."></textarea>
+    </section>
+  </main>
+
+  <!-- Sticky Bottom Audio Player -->
+  <footer class="fixed bottom-0 inset-x-0 z-40 card border-x-0 border-b-0 shadow-lg">
+    <div class="max-w-4xl mx-auto px-4 py-3 space-y-2">
+      <!-- Progress Bar -->
+      <div class="flex items-center gap-3 text-xs">
+        <span id="progressLabel" class="font-semibold tabular-nums shrink-0" style="color: var(--text-muted);">Câu 1 / 1</span>
+        <div class="flex-1 h-2 rounded-full soft-box overflow-hidden">
+          <div id="progressBar" class="h-full bg-blue-600 rounded-full transition-all duration-300" style="width: 0%;"></div>
+        </div>
+        <span id="repeatStatus" class="font-semibold text-blue-600 dark:text-blue-400 shrink-0 hidden"></span>
+      </div>
+
+      <!-- Player Controls -->
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-1.5">
+          <button id="btnSpeedQuick" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-bold soft-box hover:opacity-80 transition tabular-nums" title="Đổi nhanh tốc độ đọc">1.0x</button>
+        </div>
+
+        <div class="flex items-center gap-2 sm:gap-3">
+          <button id="btnPrev" type="button" class="p-2.5 rounded-full soft-box hover:opacity-80 transition" aria-label="Câu trước" title="Câu trước">
+            <i data-lucide="skip-back" class="w-5 h-5"></i>
+          </button>
+          <button id="btnPlayPause" type="button" class="px-5 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md transition flex items-center gap-2" aria-label="Phát hoặc tạm dừng">
+            <i id="iconPlayPause" data-lucide="play" class="w-5 h-5 fill-current"></i>
+            <span id="labelPlayPause">Nghe bài</span>
+          </button>
+          <button id="btnNext" type="button" class="p-2.5 rounded-full soft-box hover:opacity-80 transition" aria-label="Câu tiếp theo" title="Câu tiếp theo">
+            <i data-lucide="skip-forward" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+          <button id="btnStop" type="button" class="p-2.5 rounded-full soft-box hover:text-red-600 transition" aria-label="Dừng hẳn" title="Dừng và quay về đầu">
+            <i data-lucide="square" class="w-4 h-4 fill-current"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="hidden fixed bottom-28 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-slate-900 text-white text-xs font-medium shadow-lg toast-enter"></div>
+
+  <script>
+    const SAMPLE_LESSON = `Tóm tắt trọng tâm Bài 6 và Bài 7: Linh kiện điện tử.
+
+Phần 1. Bài 6: Khảo sát các linh kiện thụ động.
+
+1. Điện trở.
+Cấu tạo và ký hiệu: Làm bằng gốm, bột hoặc kim loại. Điện trở thường ký hiệu là R, biến trở ký hiệu là R hoặc VR.
+Đơn vị đo là Ôm. Quy đổi: 1 kilô ôm bằng 1000 ôm, 1 mêga ôm bằng 1000 kilô ôm, 1 mili ôm bằng 1 phần 1000 ôm.
+Cách đọc điện trở 4 vòng màu: R bằng hai chữ số đầu nhân 10 mũ vòng thứ ba, đơn vị ôm, vòng cuối là nhũ vàng hoặc nhũ bạc.
+Mẹo nhớ nhanh vòng thứ ba: Đen là chục ôm, Nâu là trăm ôm, Đỏ là kilô ôm, Cam là chục kilô ôm, Vàng là trăm kilô ôm, Xanh lá là mêga ôm, Nhũ vàng là ôm, Nhũ bạc là 0 phẩy ôm.
+Cách đọc điện trở 5 vòng màu: R bằng ba chữ số đầu nhân 10 mũ vòng thứ tư, đơn vị ôm, vòng cuối cách xa hơn các vòng còn lại.
+Cách mắc mạch: Mắc nối tiếp thì điện trở tương đương bằng tổng R1 cộng R2 cộng R3. Mắc song song hai điện trở thì bằng tích chia tổng, tức R1 nhân R2 chia cho R1 cộng R2.
+Kiểm tra chất lượng bằng VOM: Giá trị đo được xấp xỉ giá trị ghi trên thân thì điện trở còn tốt.
+
+2. Tụ điện.
+Phân loại và ký hiệu: Gồm tụ không cực tính và tụ có cực tính, đều ký hiệu là C.
+Đơn vị đo là Fara, các bậc liền kề cách nhau 1000 lần: 1 Fara bằng 1000 mili Fara, 1 mili Fara bằng 1000 micrô Fara, 1 micrô Fara bằng 1000 nanô Fara, 1 nanô Fara bằng 1000 picô Fara.
+Cách đọc giá trị: Tụ có cực tính đọc trực tiếp trên thân, ví dụ 100 micrô Fara 25 Vôn là 100 micrô Fara. Tụ không cực tính ghi ba chữ số a b c thì C bằng a b nhân 10 mũ c, đơn vị picô Fara, ví dụ 104 bằng 0,1 micrô Fara.
+Mẹo đọc nhanh tụ không cực: Đuôi 3 là 0 phẩy 0 micrô Fara, đuôi 4 là 0 phẩy micrô Fara, đuôi 5 là micrô Fara, đuôi 6 là chục micrô Fara.
+Cách mắc mạch: Ngược với điện trở. Mắc nối tiếp hai tụ thì bằng tích chia tổng. Mắc song song thì bằng tổng C1 cộng C2.
+Kiểm tra chất lượng bằng VOM: Bật VOM thang đo điện dung, đặt hai que vào hai chân tụ, giá trị đo xấp xỉ trị số trên thân thì tụ tốt.
+
+3. Cuộn cảm.
+Ký hiệu là L. Đơn vị đo là Henry, các bậc liền kề cách nhau 1000 lần: Henry, mili Henry, micrô Henry, nanô Henry, picô Henry.
+
+Phần 2. Bài 7: Khảo sát các linh kiện tích cực.
+
+1. Diode.
+Chức năng: Là linh kiện bán dẫn có hai chân Anốt và Ca-tốt, dùng để chuyển đổi dòng điện xoay chiều thành dòng điện một chiều.
+Nguyên lý làm việc: Nếu cực A có điện áp cao hơn cực K thì diode dẫn điện theo chiều từ A sang K, ngược lại diode không dẫn điện.
+Kiểm tra chất lượng bằng VOM: Bật VOM thang đo điốt. Đặt que đỏ vào chân A, que đen vào chân K hiện từ 0,5 đến 0,7 Vôn; đảo ngược que hiện OL thì diode tốt.
+Diode đặc biệt gồm LED là diode phát sáng, chân dài là A, chân ngắn hoặc cạnh vát phẳng là K; và Zener là diode ổn áp.
+Ứng dụng: Dùng trong mạch chỉnh lưu nửa chu kỳ gồm 1 diode và mạch chỉnh lưu cầu gồm 4 diode.
+
+2. Transistor lưỡng cực BJT.
+Khái niệm và công dụng: Là linh kiện bán dẫn 3 chân B, C, E, dùng để khuếch đại tín hiệu điện và làm công tắc điện tử, gồm loại thuận PNP và loại nghịch NPN.
+Loại thuận PNP có m
